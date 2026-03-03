@@ -4,6 +4,8 @@
 
 import numpy as np
 from pyrsimg import readTiff, img_normalize
+import random
+import torch
 
 def read_normalize(paths_img, paths_truth, max_bands, min_bands):
     ''' des: satellite image reading and normalization
@@ -26,3 +28,13 @@ def read_normalize(paths_img, paths_truth, max_bands, min_bands):
         scene_list.append(scene_arr), truth_list.append(truth_ins.array)
     return scene_list, truth_list
 
+class add_noise:
+  def __init__(self, std=[0, 0.001]):
+      self.std = std
+  def __call__(self, patch_truth):
+      '''patch_truth: torch.Tensor, image''' 
+      patch_truth_ = patch_truth.clone()
+      std = random.uniform(self.std[0], self.std[1])
+      noise = torch.normal(mean=0, std=std, size=patch_truth[0:-1].shape)
+      patch_truth_[0:-1] = patch_truth[0:-1].add(noise)
+      return patch_truth_

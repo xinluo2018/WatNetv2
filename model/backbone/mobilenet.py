@@ -4,7 +4,6 @@
 
 import torch.nn as nn
 import numpy as np
-from torchsummary import summary
 
 def conv1x1_bn_relu6(inp, oup):
     return nn.Sequential(

@@ -5,7 +5,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchsummary import summary
 
 class SeparableConv2d(nn.Module):
     ''' dilated_dw_conv2d -> bn(optional) -> 1x1 conv'''

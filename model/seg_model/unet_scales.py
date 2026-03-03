@@ -24,7 +24,7 @@ def conv3x3_bn_relu(in_channels, out_channels):
 def dwconv3x3_bn_relu(in_channels, out_channels):
     return nn.Sequential(
         nn.Conv2d(in_channels=in_channels, out_channels=out_channels, \
-            kernel_size=3, stride=1, padding=1, groups=in_channels),
+                                kernel_size=3, stride=1, padding=1, groups=in_channels),
         nn.BatchNorm2d(out_channels),
         nn.ReLU(inplace=True)
     )
@@ -39,22 +39,21 @@ def convert_g_l(img_g, scale_ratio):
         start_crop = int((size_g - size_l)//2)
         img_l_crop = img_g[:,:, start_crop:int(start_crop+size_l), start_crop:int(start_crop+size_l)]
         img_l = F.interpolate(img_l_crop, size=[size_g, size_g], mode='nearest')
-
     else:
         ''' enlarge scale -> crop '''
         start_crop = int((size_g*scale_ratio - size_l*scale_ratio)//2)
         img_g_up = F.interpolate(img_g, size=[size_g*scale_ratio, size_g*scale_ratio], mode='nearest')
         img_l = img_g_up[:, :, start_crop:start_crop+int(size_l*scale_ratio), \
-                                    start_crop:start_crop+int(size_l*scale_ratio)]
-
+                                        start_crop:start_crop+int(size_l*scale_ratio)]
     return img_l
+
 
 ####-----------for the unet-----------####
 class dsample(nn.Module):
     '''down x2: pooling->conv_bn_relu->dwconv_bn_relu->conv_bn_relu
        down x4: pooling->conv_bn_relu->dwconv_bn_relu->dwconv_bn_relu->conv_bn_relu
     '''
-    def __init__(self, in_channels, ex_channels, out_channels, scale = 2, **kwargs):
+    def __init__(self, in_channels, ex_channels, out_channels, scale = 2):
         super(dsample, self).__init__()
         self.scale = scale
         self.pool = nn.AvgPool2d(kernel_size=scale)
@@ -80,7 +79,7 @@ class upsample(nn.Module):
     '''up x2: up_resize -> dwconv_bn_relu -> conv_bn_relu 
        up x4: up_resize -> dwconv_bn_relu -> dwconv_bn_relu -> conv_bn_relu 
     '''
-    def __init__(self, in_channels, out_channels, scale = 2, **kwargs):
+    def __init__(self, in_channels, out_channels, scale = 2):
         super(upsample, self).__init__()
         self.scale = scale
         self.up2_layer = nn.Upsample(scale_factor=2, mode='nearest')
@@ -105,7 +104,7 @@ class unet_scales(nn.Module):
     ''' 
     description: unet model for single-scale image processing
     '''
-    def __init__(self, num_bands, num_classes, scale_high=2048, scale_mid=512, scale_low=256):
+    def __init__(self, num_bands, num_classes, scale_high=1024, scale_mid=512, scale_low=256):
         super(unet_scales, self).__init__()
         self.name = 'unet_scales'
         self.num_classes = num_classes
@@ -151,7 +150,7 @@ class unet_scales(nn.Module):
         for encode in self.encoder:
             x_encode_mid = encode(x_encode_mid)
             x_encode_mid2low = convert_g_l(img_g=x_encode_mid, \
-                                            scale_ratio=self.mid2low_ratio)
+                                                scale_ratio=self.mid2low_ratio)
             skips_mid.append(x_encode_mid2low)
         skips_mid = reversed(skips_mid[:-1])
 
@@ -166,13 +165,10 @@ class unet_scales(nn.Module):
         '''-------- feature decoding-------'''
         '''--- feature fusion'''
         x_decode = torch.cat((x_encode_low, x_encode_mid2low, x_encode_high2low), 1)
-        # x_decode = x_encode_low
 
         for i, (decode, skip_high, skip_mid, skip_low) in enumerate(zip(self.decoder, skips_high, skips_mid, skips_low)):
             x_decode = decode(x_decode)
             x_decode = torch.cat([x_decode, skip_high, skip_mid, skip_low], dim=1)
-            # x_decode = torch.cat([x_decode, skip_low], dim=1)
-
         output = self.up_last(x_decode)
         out_prob = self.outp_layer(output)
         return out_prob
