@@ -1,133 +1,59 @@
-## author: xin luo
-## create: 2021.6.29, modify: 2023.2.3
-## des: the simple UNet model.
-
+'''
+author: xin luo
+create: 2020.1.24
+des: a simple U-Net model
+'''
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-def conv_bn_relu(in_channels, out_channels, kernel_size=3):
-    padding = (kernel_size - 1) // 2 ## keep the same output size
+def conv(in_channels, out_channels):
     return nn.Sequential(
-        nn.Conv2d(in_channels, out_channels, kernel_size, 1, padding),
+        nn.Conv2d(in_channels, out_channels, 3, 1, 1),
         nn.BatchNorm2d(out_channels),
         nn.ReLU(inplace=True)
-    )
-
-def dwconv3x3_bn_relu(in_channels, out_channels):
-    return nn.Sequential(
-        nn.Conv2d(in_channels=in_channels, out_channels=out_channels, \
-            kernel_size=3, stride=1, padding=1, groups=in_channels),
-        nn.BatchNorm2d(out_channels),
-        nn.ReLU(inplace=True)
-    )
-
-
-####-----------for the unet-----------####
-class dsample(nn.Module):
-    '''down x2: pooling->conv_bn_relu->dwconv_bn_relu->conv_bn_relu
-       down x4: pooling->conv_bn_relu->dwconv_bn_relu->dwconv_bn_relu->conv_bn_relu
-    '''
-    def __init__(self, in_channels, ex_channels, out_channels, scale = 2, **kwargs):
-        super(dsample, self).__init__()
-        self.scale = scale
-        self.pool = nn.AvgPool2d(kernel_size=scale)
-        self.conv_in = conv_bn_relu(in_channels, ex_channels, kernel_size=3)
-        self.dwconv_1 = dwconv3x3_bn_relu(ex_channels, ex_channels)
-        self.dwconv_2 = dwconv3x3_bn_relu(ex_channels, ex_channels)
-        self.conv_out = conv_bn_relu(ex_channels, out_channels, kernel_size=1)
-    def forward(self, x):
-        if self.scale == 2:
-            x = self.pool(x)
-            x = self.conv_in(x)
-            x = self.dwconv_1(x)
-            x = self.conv_out(x)
-        elif self.scale == 4:
-            x = self.pool(x)
-            x = self.conv_in(x) 
-            x = self.dwconv_1(x)
-            x = self.dwconv_2(x)
-            x = self.conv_out(x)
-        return x
-
-class upsample(nn.Module):
-    '''up x2: up_resize -> dwconv_bn_relu -> conv_bn_relu 
-       up x4: up_resize -> dwconv_bn_relu -> dwconv_bn_relu -> conv_bn_relu 
-    '''
-    def __init__(self, in_channels, out_channels, scale = 2, **kwargs):
-        super(upsample, self).__init__()
-        self.scale = scale
-        self.up2_layer = nn.Upsample(scale_factor=2, mode='nearest')
-        self.up4_layer = nn.Upsample(scale_factor=4, mode='nearest')
-        self.dwconv_bn_relu_1 = dwconv3x3_bn_relu(in_channels, in_channels)
-        self.dwconv_bn_relu_2 = dwconv3x3_bn_relu(in_channels, in_channels)
-        self.conv_out = conv_bn_relu(in_channels, out_channels, kernel_size=3)
-
-    def forward(self, x):
-        if self.scale == 2:
-            x = self.up2_layer(x)
-            x = self.dwconv_bn_relu_1(x)
-            x = self.conv_out(x)
-        elif self.scale == 4:
-            x = self.up4_layer(x)
-            x = self.dwconv_bn_relu_1(x)
-            x = self.dwconv_bn_relu_2(x)
-            x = self.conv_out(x)
-        return x
-
+        )
 
 class unet(nn.Module):
-    ''' 
-    description: unet model for single-scale image processing
-    '''
-    def __init__(self, num_bands, num_classes=2):
+    def __init__(self, num_bands):
         super(unet, self).__init__()
-        self.name = 'unet'
-        self.num_classes = num_classes
-        self.encoder = nn.ModuleList([
-            dsample(in_channels=num_bands, ex_channels=32, out_channels=16, scale=2), # 1/2
-            dsample(in_channels=16, ex_channels=64, out_channels=16, scale=2),   # 1/4
-            dsample(in_channels=16, ex_channels=128, out_channels=32, scale=2),  # 1/8
-            dsample(in_channels=32, ex_channels=128, out_channels=32, scale=4),  # 1/32
-            dsample(in_channels=32, ex_channels=256, out_channels=64, scale=4),  # 1/128
-        ])
-        self.decoder = nn.ModuleList([
-            upsample(in_channels=64, out_channels=64, scale=4),    # 1/32
-            upsample(in_channels=64+32, out_channels=64, scale=4), # 1/8
-            upsample(in_channels=64+32, out_channels=64, scale=2), # 1/4
-            upsample(in_channels=64+16, out_channels=32, scale=2), # 1/2
-        ])
-        self.up_last = upsample(in_channels=32+16, out_channels=32, scale=2)
-        if num_classes == 2:
-            self.outp_layer = nn.Sequential(
-                        nn.Conv2d(in_channels=32, out_channels=1, kernel_size=1),
-                        nn.Sigmoid())
-        else:
-            self.outp_layer = nn.Sequential(
-                        nn.Conv2d(in_channels=32, out_channels=num_classes, kernel_size=1),
-                        nn.Softmax(dim=1))
+        self.num_bands = num_bands
+        self.up = nn.Upsample(scale_factor=2, mode='nearest')
+        self.down_conv1 = conv(self.num_bands, 16)
+        self.down_conv2 = conv(16, 32)
+        self.down_conv3 = conv(32, 64)
+        self.down_conv4 = conv(64, 128)
+        self.up_conv1 = conv(192, 64)
+        self.up_conv2 = conv(96, 48)
+        self.up_conv3 = conv(64, 32)
+        self.outp = nn.Sequential(
+                nn.Conv2d(32, 1, kernel_size=3, padding=1),
+                ) 
 
-    def forward(self, input):
-        x_encode = input
-        '''feature encoding'''
-        skips = []
-        for encode in self.encoder:
-            x_encode = encode(x_encode)
-            skips.append(x_encode)
-        skips = reversed(skips[:-1])
-
-        '''feature decoding'''
-        x_decode = x_encode
-        for i, (decode, skip) in enumerate(zip(self.decoder, skips)):
-            x_decode = decode(x_decode)
-            x_decode = torch.cat([x_decode, skip], dim=1)
-        output = self.up_last(x_decode)
-        out_prob = self.outp_layer(output)
-        return out_prob
+    def forward(self, x):   ## input size: 6x256x256
+        ## encoder part
+        x1 = self.down_conv1(x)              
+        x1 = F.avg_pool2d(input=x1, kernel_size=2)  # 16x128x128
+        x2 = self.down_conv2(x1)              
+        x2 = F.avg_pool2d(input=x2, kernel_size=2) # 32x64x64
+        x3 = self.down_conv3(x2)              
+        x3 = F.avg_pool2d(input=x3, kernel_size=2) # 64x32x32
+        x4 = self.down_conv4(x3)              
+        x4 = F.avg_pool2d(input=x4, kernel_size=2) # 128x16x16
+        ## decoder part
+        x4_up = torch.cat([self.up(x4), x3], dim=1)  # (128+64)x32x32
+        x3_up = self.up_conv1(x4_up)  # 64x32x32
+        x3_up = torch.cat([self.up(x3_up), x2], dim=1)  # (64+32)x64x64
+        x2_up = self.up_conv2(x3_up)  # 48x64x64
+        x2_up = torch.cat([self.up(x2_up), x1], dim=1)  # (48+16)x128x128
+        x1_up = self.up_conv3(x2_up)    # 32x128x128
+        x1_up = self.up(x1_up)        # 32x256x256
+        logit = self.outp(x1_up)
+        return logit          
 
 if __name__ == '__main__':
-    model = unet(num_bands=6, num_classes=2)
-    input = torch.randn(2, 6, 512, 512)
+    model = unet(num_bands=7)
+    input = torch.randn(1, 7, 256, 256)
     output = model(input)
     print(output.shape)

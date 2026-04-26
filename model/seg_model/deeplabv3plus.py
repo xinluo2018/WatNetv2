@@ -150,11 +150,11 @@ class deeplabv3plus(nn.Module):
         if num_classes == 2:
             self.outp_layer = nn.Sequential(
                     nn.Conv2d(in_channels=256, out_channels=1, kernel_size=1),
-                    nn.Sigmoid())
+                    )
         else:
             self.outp_layer = nn.Sequential(
                     nn.Conv2d(in_channels=256,out_channels=num_classes,kernel_size=1),
-                    nn.Softmax(dim=1))
+                    )
 
 
     def forward(self, x):
@@ -170,8 +170,8 @@ class deeplabv3plus(nn.Module):
         ## -------features concat-------  ##
         x_fea_concat = torch.cat([x_fea_high, x_fea_low], dim=1) # 
         x_fea_concat = self.high_low_block(x_fea_concat)
-        x_out_prob = self.outp_layer(x_fea_concat)
-        x_out_prob = F.interpolate(x_out_prob, x.size()[-2:], \
+        x_out_logit = self.outp_layer(x_fea_concat)
+        x_out_logit = F.interpolate(x_out_logit, x.size()[-2:], \
                                         mode='bilinear', align_corners=True)
-        return x_out_prob
+        return x_out_logit
 
