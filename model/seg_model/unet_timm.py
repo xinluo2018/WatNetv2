@@ -15,7 +15,7 @@ def conv3x3_bn_relu(in_channels, out_channels):
         nn.ReLU(inplace=True)
         )
 
-class u2net_timm(nn.Module):
+class unet_timm(nn.Module):
     def __init__(self, num_bands, 
                         backbone_name='resnet34', 
                         pretrained=False):
@@ -23,7 +23,7 @@ class u2net_timm(nn.Module):
         num_bands: number of input bands
         num_bands_b2: number of bands for branch 2 (e.g., DEM)
         '''
-        super(u2net_timm, self).__init__()
+        super().__init__()
         self.num_bands = num_bands
         self.decode_channels = [64, 64, 64, 64, 32]  # decoder channels for each stage
         self.up = nn.Upsample(scale_factor=2, mode='nearest')  # upsample layer
@@ -65,7 +65,7 @@ class u2net_timm(nn.Module):
         return logit
 
 if __name__ == '__main__':
-    model = u2net_timm(num_bands=6, 
+    model = unet_timm(num_bands=6, 
                         # backbone_name='resnet34', 
                         backbone_name='efficientnet_b0',
                         pretrained=True)

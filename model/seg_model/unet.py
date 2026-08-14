@@ -8,10 +8,40 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import torch
+import torch.nn as nn
+
+# class GlobalBatchNorm2d(nn.Module):
+#     """
+#     One mean/var for the whole mini-batch over (N,C,H,W).
+#     Optional affine: per-channel gamma/beta (or you can make them scalar).
+#     """
+#     def __init__(self, num_channels: int, eps: float = 1e-5, affine: bool = True):
+#         super().__init__()
+#         self.eps = eps
+#         self.affine = affine
+#         if affine:
+#             self.weight = nn.Parameter(torch.ones(1, num_channels, 1, 1))
+#             self.bias   = nn.Parameter(torch.zeros(1, num_channels, 1, 1))
+#         else:
+#             self.register_parameter("weight", None)
+#             self.register_parameter("bias", None)
+#     def forward(self, x):
+#         # x: (N,C,H,W)
+#         mean = x.mean(dim=(0,1,2,3), keepdim=True)
+#         var  = x.var(dim=(0,1,2,3), keepdim=True, unbiased=False)
+#         x_hat = (x - mean) / torch.sqrt(var + self.eps)
+#         if self.affine:
+#             x_hat = x_hat * self.weight + self.bias
+#         return x_hat
+
+
 def conv(in_channels, out_channels):
     return nn.Sequential(
         nn.Conv2d(in_channels, out_channels, 3, 1, 1),
         nn.BatchNorm2d(out_channels),
+        # GlobalBatchNorm2d(out_channels),
+        # nn.GroupNorm(num_groups=1, num_channels=out_channels),
         nn.ReLU(inplace=True)
         )
 

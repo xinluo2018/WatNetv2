@@ -355,17 +355,17 @@ class FinalPatchExpansion(nn.Module):
         x = self.norm(x) 
         return x
 
-class SwinUNet(nn.Module):
+class swin_unet(nn.Module):
     def __init__(self, img_size=224, 
+                 num_class=2,
+                 num_bands=1, 
                  patch_size=4, 
-                 num_class=10,
-                 in_chans=1, 
                  embed_dim=96, 
                  window_size=7):
         super().__init__()
         self.image_size = img_size
         self.patch_embed = PatchEmbedding(img_size=img_size, patch_size=patch_size, 
-                                                in_channels=in_chans, embed_dim=embed_dim)
+                                                in_channels=num_bands, embed_dim=embed_dim)
         input_resolution = (img_size // patch_size, img_size // patch_size)
         H, W = input_resolution
         ## build encoder layers
@@ -439,10 +439,10 @@ class SwinUNet(nn.Module):
 
 if __name__ == "__main__":
     # Test the model with dummy input
-    model = SwinUNet(img_size=224, 
+    model = swin_unet(img_size=224, 
                      patch_size=4, 
                      num_class=2, 
-                     in_chans=6, 
+                     num_bands=6, 
                      embed_dim=96, 
                      window_size=7)
     dummy_input = torch.randn(4, 6, 224, 224)  # [B, C, H, W]

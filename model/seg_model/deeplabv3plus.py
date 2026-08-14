@@ -62,25 +62,25 @@ class aspp(nn.Module):
     '''aspp module: consist of aspp conv, aspp pooling...'''
     def __init__(self, in_channels, atrous_rates):
         super(aspp, self).__init__()
-        out_channels = 256   
+        self.out_channels = 256   
         modules = []
         # branch 1：conv2d+bn+relu
         modules.append(nn.Sequential(
-                    nn.Conv2d(in_channels, out_channels, 1, bias=False),
-                    nn.BatchNorm2d(out_channels),
+                    nn.Conv2d(in_channels, self.out_channels, 1, bias=False),
+                    nn.BatchNorm2d(self.out_channels),
                     nn.ReLU()))
         rate1, rate2, rate3 = tuple(atrous_rates)  ## 
         ## branch 2-4：atrous convolution
-        modules.append(aspp_conv(in_channels, out_channels, rate1))
-        modules.append(aspp_conv(in_channels, out_channels, rate2))
-        modules.append(aspp_conv(in_channels, out_channels, rate3))
+        modules.append(aspp_conv(in_channels, self.out_channels, rate1))
+        modules.append(aspp_conv(in_channels, self.out_channels, rate2))
+        modules.append(aspp_conv(in_channels, self.out_channels, rate3))
         ## branch 5：pooling
-        modules.append(aspp_pooling(in_channels, out_channels))
+        modules.append(aspp_pooling(in_channels, self.out_channels))
         self.convs = nn.ModuleList(modules) 
         ## for merged branches：conv2d+bn+relu+dropout
         self.project = nn.Sequential(
-                    nn.Conv2d(5 * out_channels, out_channels, 1, bias=False),
-                    nn.BatchNorm2d(out_channels),
+                    nn.Conv2d(5 * self.out_channels, self.out_channels, 1, bias=False),
+                    nn.BatchNorm2d(self.out_channels),
                     nn.ReLU(),
                     nn.Dropout(0.5))
     def forward(self, x):
@@ -130,8 +130,6 @@ class Xception65_feat(nn.Module):
         x = self.backbone.relu(x) 
         fea_high = x      # size -> 1/32, num_channels -> 2048
         return fea_low, fea_high
-
-
 
 class deeplabv3plus(nn.Module):
     '''des: original deeplabv3_plus model'''

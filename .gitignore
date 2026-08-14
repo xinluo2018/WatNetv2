@@ -1,7 +1,7 @@
 .DS_Store
 __pycache__/
 data/dset
-data/valset
+data/result
 dset-val-patch-del
 model/trained
 
