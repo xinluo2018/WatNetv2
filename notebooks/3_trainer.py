@@ -30,7 +30,7 @@ patch_resize = None     ## patch resize setting
 learning_rate = 1e-4     
 batch_size = 8   
 device = torch.device('cuda:0')  
-model_name = 'watnet'  ## model name for saving
+model_name = 'deeplab_mb2'  ## model name for saving
 print('model:', model_name)
 ### traset
 paths_scene_tra, paths_truth_tra = config.paths_tra_scene, config.paths_tra_truth
@@ -67,18 +67,18 @@ val_loader = torch.utils.data.DataLoader(val_dset, batch_size=batch_size, num_wo
 ## 4. model, loss and optimizer
 ### 4.1 create model
 # model = unet(num_bands=6)
-model = watnet(num_bands=6, num_classes=2)
-# model = deeplabv3plus_mobilev2(num_bands=6)
-## model = swin_unet(img_size=512, num_bands=6, window_size=8)
-## model = unet_timm(num_bands=6, 
-##                    backbone_name='efficientnet_b0', 
-##                   # backbone_name='mobilenetv3_large_100',
-##                   #  backbone_name='resnet50',
-##                    pretrained=True)
-## model = unet_swin_timm(num_bands=6, 
-##                          img_size = 512, 
-##                          backbone_name='swinv2_base_window8_256',
-##                          pretrained=True) 
+# model = watnet(num_bands=6, num_classes=2)
+model = deeplabv3plus_mobilev2(num_bands=6)
+# model = swin_unet(img_size=512, num_bands=6, window_size=8)
+# model = unet_timm(num_bands=6, 
+#                 #    backbone_name='efficientnet_b0', 
+#                   # backbone_name='mobilenetv3_large_100',
+#                    backbone_name='resnet50',
+#                    pretrained=True)
+# model = unet_swin_timm(num_bands=6, 
+#                          img_size = 512, 
+#                          backbone_name='swinv2_base_window8_256',
+#                          pretrained=True) 
 
 ### 4.2 create loss and optimizer  
 bce_loss = nn.BCEWithLogitsLoss()
@@ -98,7 +98,7 @@ def train_loops(model, loss_fn,
     model = model.to(device)
     size_tra_loader = len(tra_loader)
     size_val_loader = len(val_loader)
-    best_miou = 0.90
+    best_miou = 0.92
     epoches_i = []
     for epoch in range(epoches):
         start = time.time()

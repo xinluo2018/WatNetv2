@@ -1,0 +1,6 @@
+# ninja log v7
+1	12451	1789451630018852947	/home/xin/Developer-luo/WatNetv2/model/mamba_seg/ops/selective_scan/cuda/build/temp.linux-x86_64-cpython-310/csrc/selective_scan/cusoflex/selective_scan_core_fwd.o	63c547905089ffde
+0	38174	1789451630018852947	/home/xin/Developer-luo/WatNetv2/model/mamba_seg/ops/selective_scan/cuda/build/temp.linux-x86_64-cpython-310/csrc/selective_scan/cusoflex/selective_scan_core_bwd.o	1f69443508c0bb5d
+5	12055	1789452547131905003	/home/xin/Developer-luo/WatNetv2/model/mamba_seg/ops/selective_scan/cuda/build/temp.linux-x86_64-cpython-310/csrc/selective_scan/cusoflex/selective_scan_core_fwd.o	d164eda2bb89d5c9
+4	37603	1789452547131905003	/home/xin/Developer-luo/WatNetv2/model/mamba_seg/ops/selective_scan/cuda/build/temp.linux-x86_64-cpython-310/csrc/selective_scan/cusoflex/selective_scan_core_bwd.o	5b4818b5fee847fe
+4	28663	1789454816677691032	/home/xin/Developer-luo/WatNetv2/model/mamba_seg/ops/selective_scan/cuda/build/temp.linux-x86_64-cpython-310/csrc/selective_scan/cusoflex/selective_scan_oflex.o	cf2d7c8f88af398c

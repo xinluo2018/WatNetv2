@@ -1,0 +1,26 @@
+Refactor verification: 2026-09-14 (Linux, watnet Python 3.10, PyTorch 2.10.0+cu128)
+Commands used LD_LIBRARY_PATH=/home/xin/miniconda3/envs/watnet/lib.
+PASS five CPU unit tests: multispectral logits/gradients, custom mixer/subset,
+     custom decoder, activation checkpoint forward/backward, stochastic depth.
+PASS local upstream comparison: scan, SS2D values/all gradients,
+     full Tiny features on (32,48)/(31,35), maximum absolute difference 0.0.
+PASS classification/segmentation checkpoint formats and incomplete-load rejection.
+PASS Python configuration values; MMEngine parsing skipped (not installed).
+CUDA/oflex, MMSeg training and remote-sensing accuracy were not tested.
+
+Historical verification supplied with the original package follows:
+Verification date: 2026-09-14
+Upstream commit: 2ed52ead062a51a64521ed3871d52914bf532876
+Environment: macOS ARM64, Python 3.9, PyTorch 2.8.0, timm 1.0.29, MMEngine 0.10.7
+Mode: CPU FP32, upstream PyTorch reference kernels
+Real released pretrained file: not downloaded/tested
+CUDA/oflex and end-to-end MMSegmentation training: not tested
+
+PASS directional values, rectangular/single-row cases and scan gradcheck
+PASS SS2D upstream state keys, forward, input and all parameter gradients
+PASS full Tiny features (32, 48) [(1, 96, 8, 12), (1, 192, 4, 6), (1, 384, 2, 3), (1, 768, 1, 2)] max_abs 0.0
+PASS full Tiny features (31, 35) [(1, 96, 8, 9), (1, 192, 4, 5), (1, 384, 2, 3), (1, 768, 1, 2)] max_abs 0.0
+Loaded temporary test checkpoint; newly initialized output norms: ['outnorm0.weight', 'outnorm0.bias', 'outnorm1.weight', 'outnorm1.bias', 'outnorm2.weight', 'outnorm2.bias', 'outnorm3.weight', 'outnorm3.bias']
+Loaded temporary test checkpoint; newly initialized output norms: []
+PASS classification/segmentation checkpoint formats and incomplete-load rejection
+PASS standalone MMEngine config parse; CUDA/MMSeg integration not exercised
