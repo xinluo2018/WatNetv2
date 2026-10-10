@@ -9,7 +9,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from model.backbone.xception65 import Xception65
 
-
 def conv1x1_bn_relu(in_channels, out_channels):
     return nn.Sequential(
         nn.Conv2d(in_channels, out_channels, 1, 1, 0),

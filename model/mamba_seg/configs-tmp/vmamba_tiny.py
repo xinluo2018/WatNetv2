@@ -20,22 +20,48 @@ data_preprocessor = dict(
     size=crop_size)
 
 model = dict(
-    type='EncoderDecoder', data_preprocessor=data_preprocessor, pretrained=None,
+    type='EncoderDecoder', 
+    data_preprocessor=data_preprocessor, 
+    pretrained=None,
     backbone=dict(
-        type='MM_VMamba', dims=96, depths=(2, 2, 8, 2), in_chans=in_chans,
-        out_indices=(0, 1, 2, 3), ssm_d_state=1, ssm_ratio=1.,
-        ssm_dt_rank='auto', mlp_ratio=4., drop_path_rate=.2,
-        backend='oflex', pretrained=None),
+        type='MM_VMamba', 
+        dims=96, 
+        depths=(2, 2, 8, 2), 
+        in_chans=in_chans,
+        out_indices=(0, 1, 2, 3), 
+        ssm_d_state=1, 
+        ssm_ratio=1.,
+        ssm_dt_rank='auto', 
+        mlp_ratio=4., 
+        drop_path_rate=.2,
+        backend='oflex', 
+        pretrained=None),
     decode_head=dict(
-        type='UPerHead', in_channels=[96, 192, 384, 768], in_index=[0, 1, 2, 3],
-        pool_scales=(1, 2, 3, 6), channels=512, dropout_ratio=.1,
-        num_classes=num_classes, norm_cfg=norm_cfg, align_corners=False,
-        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.)),
+        type='UPerHead', 
+        in_channels=[96, 192, 384, 768], 
+        in_index=[0, 1, 2, 3],
+        pool_scales=(1, 2, 3, 6), 
+        channels=512, 
+        dropout_ratio=.1,
+        num_classes=num_classes, 
+        norm_cfg=norm_cfg, align_corners=False,
+        loss_decode=dict(type='CrossEntropyLoss', 
+                         use_sigmoid=False, 
+                         loss_weight=1.)),
     auxiliary_head=dict(
-        type='FCNHead', in_channels=384, in_index=2, channels=256,
-        num_convs=1, concat_input=False, dropout_ratio=.1,
-        num_classes=num_classes, norm_cfg=norm_cfg, align_corners=False,
-        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=.4)),
+        type='FCNHead', 
+        in_channels=384, 
+        in_index=2, 
+        channels=256,
+        num_convs=1, 
+        concat_input=False, 
+        dropout_ratio=.1,
+        num_classes=num_classes, 
+        norm_cfg=norm_cfg, 
+        align_corners=False,
+        loss_decode=dict(type='CrossEntropyLoss', 
+                         use_sigmoid=False, 
+                         loss_weight=.4)),
     train_cfg={}, test_cfg=dict(mode='whole'))
 
 train_pipeline = [
@@ -60,13 +86,17 @@ tta_pipeline = [
         [dict(type='LoadAnnotations')], [dict(type='PackSegInputs')]])]
 
 train_dataloader = dict(
-    batch_size=2, num_workers=4, persistent_workers=True,
+    batch_size=2, 
+    num_workers=4, 
+    persistent_workers=True,
     sampler=dict(type='InfiniteSampler', shuffle=True),
     dataset=dict(type=dataset_type, data_root=data_root,
                  data_prefix=dict(img_path='images/training', seg_map_path='annotations/training'),
                  pipeline=train_pipeline))
 val_dataloader = dict(
-    batch_size=1, num_workers=4, persistent_workers=True,
+    batch_size=1, 
+    num_workers=4, 
+    persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(type=dataset_type, data_root=data_root,
                  data_prefix=dict(img_path='images/validation', seg_map_path='annotations/validation'),

@@ -4,4 +4,4 @@ data/dset
 data/result
 dset-val-patch-del
 model/trained
-
+model/weights   

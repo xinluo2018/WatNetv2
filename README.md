@@ -10,3 +10,7 @@ Note:
 1. the dataset is prepared at WatSet repository ([github.com/Hydrological-Observation-Group/WatSet](https://github.com/Hydrological-Observation-Group/WatSet))
 
 TODO:
+
+1. Rewrite vmamba_seg to one file.
+2. try SAM model.
+3. replace segmentation decoder to UPerHead for the vmamba.
