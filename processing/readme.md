@@ -23,4 +23,8 @@
 | ------------- | -----  | ------  | ----------- | ---------- | --------       |
 | mamba_seg     | 91.75% | 97.21%  | 2026.9.17   | no         |very tiny model |
 | mamba_seg     | 94.82% | 98.30%  | 2026.10.9   | no         |  tiny model    |
-| mamba_seg     | 95.66% | 98.58%  | 2026.10.9   | yes         |  tiny model    |
+| mamba_seg     | 95.91% | 98.67%  | 2026.10.12   | yes        |  tiny model    |
+| mamba_seg     | 96.07% | 98.72%  | 2026.10.12   | yes        |  tiny model    |
+
+
+

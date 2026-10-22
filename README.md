@@ -11,6 +11,7 @@ Note:
 
 TODO:
 
-1. Rewrite vmamba_seg to one file.
-2. try SAM model.
-3. replace segmentation decoder to UPerHead for the vmamba.
+1. test multiscale patches for segmentation.
+2. test DINOv3 + decoder.
+3. try SAM model.
+4.

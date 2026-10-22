@@ -11,9 +11,21 @@ from torch import nn
 from collections import OrderedDict
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint
+from model.mamba_seg import decoder
 from model.mamba_seg.selective_scan import selective_scan_fn
+from model.mamba_seg.decoder import PyramidDecoder, UPerNetDecoder
+
+path_weights = "model/weights/vssm1_tiny_0230s_ckpt_epoch_264.pth"
+
 
 ## utils
+def conv_bn_relu(in_channels, out_channels, kernel_size=3, stride=1, padding=1):
+    return nn.Sequential(
+        nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding),
+        nn.BatchNorm2d(out_channels),
+        nn.ReLU(inplace=True),
+    )
+
 class LayerNorm2d(nn.LayerNorm):
     def forward(self, x):
         x = x.permute(0, 2, 3, 1)
@@ -212,7 +224,7 @@ class mamba_init:
 
 ### mamba backbone: including patch embedding, vssblock and downsampling
 def _patch_embed(in_chans, dim):
-    """2 conv3, 4x downsample, 
+    """2 conv3, downsample 4x, 
     Official v2 patch embedding in NCHW format."""
     return nn.Sequential(
         nn.Conv2d(in_chans, dim // 2, 3, 2, 1), 
@@ -246,7 +258,6 @@ class VMamba_Backbone(nn.Module):
                     mlp_ratio=4.,
                     use_checkpoint=False, 
                     backend='oflex', 
-                    pretrained=None,
                     block_cls=VSSBlock, 
                     block_kwargs=None, 
                     ssm_conv_bias=False,
@@ -274,7 +285,7 @@ class VMamba_Backbone(nn.Module):
         self.out_indices = tuple(out_indices)
         self.out_channels = tuple(self.dims[i] for i in self.out_indices)
         self.feature_strides = tuple(4 * 2**i for i in self.out_indices)
-        self.pretrained = pretrained
+        # self.pretrained = pretrained
         self.patch_embed = _patch_embed(in_chans, self.dims[0])
 
         rates = torch.linspace(0, drop_path_rate, sum(depths)).tolist()
@@ -301,7 +312,6 @@ class VMamba_Backbone(nn.Module):
         self.apply(self._init_weights)
         for i in self.out_indices:
             self.add_module(f'outnorm{i}', LayerNorm2d(self.dims[i]))
-        self._pretrained_loaded = False
 
     @staticmethod
     def _init_weights(module):
@@ -312,11 +322,6 @@ class VMamba_Backbone(nn.Module):
         elif isinstance(module, nn.LayerNorm):
             nn.init.zeros_(module.bias)
             nn.init.ones_(module.weight)
-
-    def init_weights(self):
-        if self.pretrained and not self._pretrained_loaded:
-            self.load_pretrained(self.pretrained)
-            self._pretrained_loaded = True
 
     def load_pretrained(self, path):
         """Load complete official classification or segmentation backbones."""
@@ -363,6 +368,7 @@ class VMamba_Backbone(nn.Module):
         return result
 
     def forward(self, x):
+        '''outputs: features from shallow to deep'''
         x = self.patch_embed(x)
         outputs = []
         for i, stage in enumerate(self.layers):
@@ -371,27 +377,6 @@ class VMamba_Backbone(nn.Module):
                 outputs.append(getattr(self, f'outnorm{i}')(x).contiguous())
             x = stage.downsample(x)
         return outputs
-
-### Segmentation    
-class PyramidDecoder(nn.Module):
-    def __init__(self, in_channels, channels, num_classes):
-        super().__init__()
-        if not in_channels or channels < 1 or num_classes < 1:
-            raise ValueError('Require feature channels and positive decoder/classes widths')
-        self.projections = nn.ModuleList(nn.Conv2d(c, channels, 1) for c in in_channels)
-        self.head = nn.Sequential(
-            nn.Conv2d(channels, channels, 3, padding=1), nn.GELU(),
-            nn.Conv2d(channels, num_classes, 1))
-
-    def forward(self, features):
-        if len(features) != len(self.projections):
-            raise ValueError('Feature count does not match decoder projections')
-        x = self.projections[-1](features[-1])  ## start from the last feature map, the last feature not to be downsampled
-        for projection, feature in reversed(list(zip(self.projections[:-1], features[:-1]))):
-            x = projection(feature) + F.interpolate(
-                x, size=feature.shape[-2:], mode='bilinear', align_corners=False)
-        return self.head(x)
-
 
 class MambaSeg(nn.Module):
     """
@@ -402,25 +387,21 @@ class MambaSeg(nn.Module):
     def __init__(self, num_classes=2, 
                         in_chans=3, 
                         decoder_channels=128,
-                        backbone=None, 
-                        decoder=None, 
+                        pretrained = False,
                         **backbone_kwargs):
         super().__init__()
         if num_classes < 1:
             raise ValueError('num_classes must be positive')
-        if backbone is not None and backbone_kwargs:     # 
-            raise ValueError('Configure a custom backbone before passing it in')
-        self.backbone = backbone if backbone is not None else VMamba_Backbone(
-            in_chans=in_chans, **backbone_kwargs)
-        self.decoder = decoder if decoder is not None else PyramidDecoder(
-            self.backbone.out_channels, decoder_channels, num_classes)
-        if backbone is None:
-            self.backbone.init_weights()
+        self.backbone = VMamba_Backbone(in_chans=in_chans, **backbone_kwargs)
+        if pretrained:
+            self.backbone.load_pretrained(path_weights)
+        self.decoder =  PyramidDecoder(self.backbone.out_channels, decoder_channels, num_classes)        
+        # self.decoder = UPerNetDecoder(self.backbone.out_channels, decoder_channels, num_classes)
 
     def forward(self, x):
-        logits = self.decoder(self.backbone(x))
-        return F.interpolate(logits, size=x.shape[-2:], mode='bilinear', align_corners=False)
-
+        feas = self.backbone(x)
+        logits = self.decoder(feas)
+        return logits
 
 if __name__ == "__main__":
     # Test the model with dummy input
@@ -431,6 +412,7 @@ if __name__ == "__main__":
         dims=96, 
         depths=(2, 2, 8, 2), 
         ssm_d_state=1,
+        pretrained = True,
         backend='torch',
         # backend='oflex', 
         )

@@ -8,12 +8,15 @@ import torch
 import torch.nn as nn
 import timm
 
+
 def conv3x3_bn_relu(in_channels, out_channels):
     return nn.Sequential(
         nn.Conv2d(in_channels, out_channels, 3, 1, 1),
         nn.BatchNorm2d(out_channels),
+        # nn.GroupNorm(1, out_channels),
         nn.ReLU(inplace=True)
         )
+
 
 class unet_timm(nn.Module):
     def __init__(self, num_bands, 
@@ -66,8 +69,8 @@ class unet_timm(nn.Module):
 
 if __name__ == '__main__':
     model = unet_timm(num_bands=6, 
-                        # backbone_name='resnet34', 
-                        backbone_name='efficientnet_b0',
+                        backbone_name='resnet50', 
+                        # backbone_name='efficientnet_b0',
                         pretrained=True)
     x = torch.randn(2, 6, 256, 256)  # batch_size=2, num_bands=6, H=W=256
     out = model(x)

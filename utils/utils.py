@@ -2,9 +2,7 @@
 ## created: 2026.2.11
 ## des: utility functions for data processing
 
-
 import rasterio as rio 
-
 ## read scenes
 def read_scenes(scene_paths, truth_paths):
   paths_zip = zip(scene_paths, truth_paths)

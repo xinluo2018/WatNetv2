@@ -7,6 +7,7 @@
 
 import torch
 import numpy as np
+from torchvision import tv_tensors
 
 class SceneArraySet(torch.utils.data.Dataset):
     '''
@@ -18,13 +19,14 @@ class SceneArraySet(torch.utils.data.Dataset):
         self.transforms = transforms
     def __getitem__(self, index):
         '''load images and truths'''
-        scene_truth = self.scene_truth_list[index]
+        scene_truth = torch.as_tensor(self.scene_truth_list[index]).permute(2, 0, 1)
+        image = tv_tensors.Image(scene_truth[:-1])
+        mask = tv_tensors.Mask(scene_truth[-1:])
         '''pre-processing (e.g., random crop)'''
         ### Image augmentation
         if self.transforms is not None:
-            scene_truth = self.transforms(scene_truth)
-        patches, ptruth = scene_truth[0:-1], scene_truth[-1:]
-        return patches, ptruth
+            image, mask = self.transforms(image, mask)
+        return image, mask
     def __len__(self):
         return len(self.scene_truth_list) 
 
@@ -36,10 +38,10 @@ class PatchPathSet(torch.utils.data.Dataset):
         '''load patches and truths'''
         patches_truth = torch.load(self.paths_patch_ptruth[index], 
                                    weights_only=False)        
+        patches = tv_tensors.Image(patches_truth[:-1].float())
+        truth = tv_tensors.Mask(patches_truth[-1:].float())  
         if self.transforms is not None:
-            patches_truth = self.transforms(patches_truth)
-        patches = patches_truth[0:-1]
-        truth = patches_truth[-1:]
+            patches, truth = self.transforms(patches, truth)
         return patches, truth
     def __len__(self):
         return len(self.paths_patch_ptruth)

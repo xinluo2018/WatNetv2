@@ -9,6 +9,7 @@ os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 import torch
 import torch.nn as nn
 import timm
+from model.mamba_seg.decoder import PyramidDecoder, UPerNetDecoder
 
 def conv3x3_bn_relu(in_channels, out_channels):
     return nn.Sequential(
@@ -44,18 +45,7 @@ class unet_swin_timm(nn.Module):
         # ==========================================
         # 2. Decoder 部分 (针对 Swin 4个Stage 的通道拼装计算)
         # ==========================================
-        self.DecoderBlocks = nn.ModuleList([
-            conv3x3_bn_relu(self.out_channels[3], self.decode_channels[0]),   
-            conv3x3_bn_relu(self.decode_channels[0] + self.out_channels[2], self.decode_channels[1]),  
-            conv3x3_bn_relu(self.decode_channels[1] + self.out_channels[1], self.decode_channels[2]), 
-            conv3x3_bn_relu(self.decode_channels[2] + self.out_channels[0], self.decode_channels[3])   
-        ])
-        
-        self.final_up = nn.Sequential(
-            nn.Upsample(scale_factor=4, mode='bilinear', align_corners=True),
-            conv3x3_bn_relu(self.decode_channels[3], 32),
-            nn.Conv2d(32, 1, kernel_size=3, padding=1),
-        ) 
+        self.decoder = PyramidDecoder(self.out_channels, 96, 1)
 
     def forward(self, x):       
         '''
@@ -64,24 +54,7 @@ class unet_swin_timm(nn.Module):
         # Encoder 
         feas = self.encoder(x)  
         feas = [ feat.permute(0, 3, 1, 2) for feat in feas if feat is not None]
-        # 提取最深层特征并融合 (Bottleneck)
-        fea_fus = feas[-1]  
-        fea_fus = self.DecoderBlocks[0](fea_fus)      
-        fea_fus = self.up(fea_fus)  
-        
-        # Skip connections (反转前面的特征图列表，不包含最后一层)
-        skips_fea = list(reversed(feas[:-1]))
-        
-        # 此时 skips_fea 长度为 3
-        for i in range(len(skips_fea)):
-            skip_fea = skips_fea[i]            
-            fea_fus = torch.cat([fea_fus, skip_fea], dim=1)  
-            fea_fus = self.DecoderBlocks[i+1](fea_fus)  
-            if i < len(skips_fea) - 1:
-                fea_fus = self.up(fea_fus)  
-                
-        # 最终上采样 (从 64x64 直接拉升回 256x256)
-        logit = self.final_up(fea_fus)  
+        logit = self.decoder(feas)
         return logit
 
 if __name__ == '__main__':

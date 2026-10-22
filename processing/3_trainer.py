@@ -14,7 +14,6 @@ import pandas as pd
 import torch.nn as nn
 import torch.nn.functional as F
 from glob import glob
-from notebooks import config
 import matplotlib.pyplot as plt
 from utils.utils import read_scenes
 from utils.data_loader import SceneArraySet, PatchPathSet
