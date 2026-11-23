@@ -78,7 +78,6 @@ def cross_scan_fn(x, force_torch=False):
     forward = torch.stack((x.flatten(2), x.transpose(2, 3).flatten(2)), dim=1)
     return torch.cat((forward, forward.flip(-1)), dim=1)
 
-
 def cross_merge_fn(y, force_torch=False):
     """Align and sum four directional sequences."""
     if y.is_cuda and not force_torch:
@@ -88,11 +87,10 @@ def cross_merge_fn(y, force_torch=False):
     if directions != 4:
         raise ValueError('Expected four scan directions')
     y = y.view(batch, directions, channels, height * width)
-    paired = y[:, :2] + y[:, 2:].flip(-1)
+    paired = y[:, :2] + y[:, 2:].flip(-1)    
     rows = paired[:, 0]
     columns = paired[:, 1].view(batch, channels, width, height)
     return rows + columns.transpose(2, 3).flatten(2)
-
 
 class SS2D(nn.Module):
     def __init__(self, d_model=96, d_state=1, ssm_ratio=1., dt_rank='auto',
@@ -121,26 +119,33 @@ class SS2D(nn.Module):
         self.dropout = nn.Dropout(dropout) if dropout else nn.Identity()
 
     def forward_core(self, x):
+        ''' des: Forward pass for the core SS2D module '''
         batch, channels, height, width = x.shape
         length = height * width
-        xs = cross_scan_fn(x, force_torch=self.backend == 'torch')  # xs: (N, 4, C, H*W)
+        xs = cross_scan_fn(x, force_torch=self.backend == 'torch')   # xs: (batch, 4, C, H*W), 4 is the number of cross-scan directions
         ## Linear projection for dt, B, and C using grouped 1D convolution
-        ## F.conv1d(): params->(input, weight, groups=1)
         ## output: [batch, 4*(dt_rank + 2 * d_state), length]
         x_dbl = F.conv1d(
-                xs.view(batch, -1, length),                # -> (N, 4*C, H*W)
-                self.x_proj_weight.view(-1, channels, 1),  # -> (4*(dt_rank + 2 * d_state), d_inner, 1)
+                xs.view(batch, -1, length),                  # -> (batch, 4*C, length)
+                self.x_proj_weight.view(-1, channels, 1),    # -> (4*(dt_rank + 2 * d_state), C, 1)
                 groups=self.k_group)
-        # dts:(N, 4, dt_rank, length), Bs:(N, 4, d_state, length), Cs:(N, 4, d_state, length), 
+        ## x_dbl -> dts, Bs, Cs
+        # x_dbl: (N, 4*(dt_rank + 2 * d_state), length)
+        # dts:(N, 4, dt_rank, length), 
+        # Bs: (N, 4, d_state, length), 
+        # Cs: (N, 4, d_state, length), 
         dts, Bs, Cs = x_dbl.view(batch, self.k_group, -1, length).split(
-            (self.dt_rank, self.d_state, self.d_state), dim=2)
+                            (self.dt_rank, self.d_state, self.d_state), dim=2)
+
+        ## out: (N, 4*C, length)
         dts = F.conv1d(
-            dts.reshape(batch, -1, length),
-            self.dt_projs_weight.view(self.k_group * channels, -1, 1), 
-            groups=self.k_group)
-        ## ys: (N, 4*C, H*W)
+                dts.reshape(batch, -1, length),          # (batch, 4*dt_rank, length) 
+                self.dt_projs_weight.view(self.k_group * channels, -1, 1),  # (4*C, dt_rank, 1)
+                groups=self.k_group)
+
+        ## ys: (batch, 4*C, length)
         ys = selective_scan_fn(
-                    xs.view(batch, -1, length), 
+                    xs.view(batch, -1, length),    ## (batch, 4*C, length)
                     dts,
                     -self.A_logs.float().exp(), 
                     Bs.contiguous(), 
@@ -148,6 +153,7 @@ class SS2D(nn.Module):
                     self.Ds.float(), 
                     self.dt_projs_bias.flatten().float(),
                     backend=self.backend)
+        ## merge 4 directions 
         merged = cross_merge_fn(
             ys.view(batch, self.k_group, channels, height, width),
             force_torch=self.backend == 'torch')
@@ -167,26 +173,23 @@ class VSSBlock(nn.Module):
                         ssm_d_state=1, 
                         ssm_ratio=1., 
                         ssm_dt_rank='auto',
-                        backend='oflex', 
-                        mixer_cls=None):
+                        backend='oflex'):
         super().__init__()
-        if mixer_cls is None:
-            mixer_cls = SS2D
         self.norm = LayerNorm2d(dim)
-        self.op = mixer_cls(
-                        dim, 
-                        ssm_d_state, 
-                        ssm_ratio, 
-                        ssm_dt_rank, 
-                        backend=backend)
+        self.op = SS2D(
+                    dim, 
+                    ssm_d_state, 
+                    ssm_ratio, 
+                    ssm_dt_rank, 
+                    backend=backend)
         self.drop_path = DropPath(drop_path)
         self.norm2 = LayerNorm2d(dim)
         self.mlp = Mlp(dim, int(dim * mlp_ratio))
         self.use_checkpoint = use_checkpoint
 
     def _forward(self, x):
-        x = x + self.drop_path(self.op(self.norm(x)))  ## ln + ss2d + drop_path + residual
-        return x + self.drop_path(self.mlp(self.norm2(x)))  ## ln + mlp + drop_path + residual
+        x = x + self.drop_path(self.op(self.norm(x)))  ## ln -> ss2d -> drop_path -> residual
+        return x + self.drop_path(self.mlp(self.norm2(x)))  ## ln -> mlp -> drop_path -> residual
 
     def forward(self, x):
         if self.use_checkpoint:
@@ -227,17 +230,18 @@ def _patch_embed(in_chans, dim):
     """2 conv3, downsample 4x, 
     Official v2 patch embedding in NCHW format."""
     return nn.Sequential(
-        nn.Conv2d(in_chans, dim // 2, 3, 2, 1), 
-        nn.Identity(),
-        LayerNorm2d(dim // 2), 
-        nn.Identity(), 
-        nn.GELU(),
-        nn.Conv2d(dim // 2, dim, 3, 2, 1), 
-        nn.Identity(), 
-        LayerNorm2d(dim))
+            nn.Conv2d(in_chans, dim // 2, 3, 2, 1),   ## down 2x
+            # nn.Conv2d(in_chans, dim // 2, 3, 1, 1),   ## down 1x
+            nn.Identity(),
+            LayerNorm2d(dim // 2), 
+            nn.Identity(), 
+            nn.GELU(),
+            nn.Conv2d(dim // 2, dim, 3, 2, 1),        ## down 4x
+            nn.Identity(), 
+            LayerNorm2d(dim))
 
 def _downsample(dim, out_dim):
-    """ downsample to (1/2)*x, Official v3 downsampling in NCHW format."""
+    """ down 2*x, Official v3 downsampling in NCHW format."""
     return nn.Sequential(
         nn.Identity(), 
         nn.Conv2d(dim, out_dim, 3, 2, 1),
@@ -251,7 +255,7 @@ class VMamba_Backbone(nn.Module):
                     dims=96,   
                     depths=(2, 2, 8, 2),      ## mamba_tiny setting
                     out_indices=(0, 1, 2, 3), 
-                    drop_path_rate=0.2,
+                    drop_path_rate=0.2,       ## regard as the maximum drop path rate for all blocks
                     ssm_d_state=1, 
                     ssm_ratio=1., 
                     ssm_dt_rank='auto', 
@@ -278,7 +282,7 @@ class VMamba_Backbone(nn.Module):
             and norm_layer == 'ln2d')
         if not official_path:
             raise ValueError('Only the official v05_noz/LN2D/v2/v3 path is supported')
-
+        ## self.dims = [dims, 2*dims, 4*dims, 8*dims]
         self.dims = [dims * 2**i for i in range(4)] if isinstance(dims, int) else list(dims)
         if len(self.dims) != 4:
             raise ValueError('dims must contain four widths')
@@ -287,26 +291,28 @@ class VMamba_Backbone(nn.Module):
         self.feature_strides = tuple(4 * 2**i for i in self.out_indices)
         # self.pretrained = pretrained
         self.patch_embed = _patch_embed(in_chans, self.dims[0])
-
+        ## linearly increasing from 0 to drop_path_rate across all blocks
+        ## means deeper blocks have higher drop path rates
         rates = torch.linspace(0, drop_path_rate, sum(depths)).tolist()
         self.layers = nn.ModuleList()
         offset = 0
         for i, (dim, depth) in enumerate(zip(self.dims, depths)):
             blocks = [block_cls(
-                        dim=dim, 
+                        dim=dim,  
                         drop_path=rates[offset + j], 
-                        mlp_ratio=mlp_ratio,
-                        use_checkpoint=use_checkpoint, 
-                        ssm_d_state=ssm_d_state,
+                        mlp_ratio=mlp_ratio,  
+                        use_checkpoint=use_checkpoint,  
+                        ssm_d_state=ssm_d_state,  
                         ssm_ratio=ssm_ratio, 
                         ssm_dt_rank=ssm_dt_rank, 
-                        backend=backend,
+                        backend=backend,  
                         **(block_kwargs or {})) 
-                    for j in range(depth)]
+                            for j in range(depth)]
             ## downsample by 2x for all but the last stage
             downsample = _downsample(dim, self.dims[i + 1]) if i < 3 else nn.Identity() 
+            ## downsample follows the sequence of blocks for this stage
             self.layers.append(nn.Sequential(OrderedDict(
-                    blocks=nn.Sequential(*blocks), downsample=downsample)))
+                            blocks=nn.Sequential(*blocks), downsample=downsample)))
             offset += depth  
 
         self.apply(self._init_weights)
@@ -324,9 +330,11 @@ class VMamba_Backbone(nn.Module):
             nn.init.ones_(module.weight)
 
     def load_pretrained(self, path):
-        """Load complete official classification or segmentation backbones."""
+        """Load complete official classification or segmentation backbones.
+        path: str, path to the pretrained checkpoint file.
+        """
         checkpoint = torch.load(path, map_location='cpu', weights_only=True)
-        state = checkpoint.get('model', checkpoint.get('state_dict', checkpoint))
+        state = checkpoint.get('model', checkpoint.get('state_dict', checkpoint)) 
         state = {key.removeprefix('module.'): value for key, value in state.items()}
 
         if any(key.startswith('backbone.') for key in state):
@@ -341,10 +349,14 @@ class VMamba_Backbone(nn.Module):
         ## make the first convolution compatible with 6-channel input
         key = 'patch_embed.0.weight'
         if key in state:
-                weight = state[key]
-                target_channels = self.patch_embed[0].in_channels
-                if weight.shape[1] == 3 and target_channels == 6:
-                    state[key] = weight.repeat(1, 2, 1, 1) * 0.5
+            weight = state[key]  # [out_channels, source_channels, kH, kW]
+            source_channels = weight.shape[1]
+            target_channels = self.patch_embed[0].in_channels
+            if source_channels != target_channels:
+                repeats = math.ceil(target_channels / source_channels)
+                state[key] = (
+                    weight.repeat(1, repeats, 1, 1)[:, :target_channels]
+                    * (source_channels / target_channels))
 
         expected = self.state_dict()
         missing = set(expected) - set(state)
@@ -368,8 +380,11 @@ class VMamba_Backbone(nn.Module):
         return result
 
     def forward(self, x):
-        '''outputs: features from shallow to deep'''
-        x = self.patch_embed(x)
+        '''
+        x: input tensor of shape (B, C, H, W)
+        outputs: features from shallow to deep
+        '''
+        x = self.patch_embed(x)     # down 4x
         outputs = []
         for i, stage in enumerate(self.layers):
             x = stage.blocks(x)
@@ -384,7 +399,7 @@ class MambaSeg(nn.Module):
         Custom backbones expose ``out_channels`` and return a sequence of NCHW maps.
         Custom decoders accept that sequence and return NCHW class logits.
     """
-    def __init__(self, num_classes=2, 
+    def __init__(self,  num_classes=2, 
                         in_chans=3, 
                         decoder_channels=128,
                         pretrained = False,
@@ -406,7 +421,7 @@ class MambaSeg(nn.Module):
 if __name__ == "__main__":
     # Test the model with dummy input
     model = MambaSeg(
-        in_chans=6, 
+        in_chans=7, 
         num_classes=1, 
         decoder_channels=32,
         dims=96, 
@@ -418,7 +433,7 @@ if __name__ == "__main__":
         )
     # model = model.to('cuda')
     # dummy_input = torch.randn(4, 6, 512, 512, device='cuda')  # [B, C, H, W]
-    dummy_input = torch.randn(4, 6, 512, 512)  # [B, C, H, W]
+    dummy_input = torch.randn(4, 7, 512, 512)  # [B, C, H, W]
     output = model(dummy_input)
     print("Output shape:", output.shape)  # Should be [1, num_classes]
 

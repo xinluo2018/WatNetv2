@@ -35,7 +35,6 @@ class PyramidPoolingModule(nn.Module):
                 branch(x), size=x.shape[-2:], mode='bilinear', align_corners=False))
         return outputs
 
-
 ### 1. PyramidDecoder
 class PyramidDecoder(nn.Module):
     def __init__(self, in_channels, channels, num_classes):
@@ -89,7 +88,6 @@ class UPerNetDecoder(nn.Module):
             nn.Conv2d(32, num_classes, kernel_size=3, padding=1),
         ) 
 
-
     def forward(self, features):
         if len(features) != len(self.laterals) + 1:
             raise ValueError('Feature count does not match UPerNet levels')
@@ -106,7 +104,7 @@ class UPerNetDecoder(nn.Module):
         fpn_outputs = [fpn_outputs[0]] + [
             F.interpolate(feature, size=output_size, mode='bilinear', align_corners=False)
             for feature in fpn_outputs[1:]
-        ]
+                ]
         output = self.fpn_bottleneck(torch.cat(fpn_outputs, dim=1))
         output = self.head(self.dropout(output)) 
         return output

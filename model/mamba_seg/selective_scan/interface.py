@@ -60,8 +60,14 @@ class SelectiveScanCuda(torch.autograd.Function):
         try:
             import selective_scan_cuda_oflex
         except ImportError as exc:
-            raise RuntimeError(
-                'Build ops/selective_scan/cuda first; see its README.md') from exc
+            import importlib
+
+            importlib.invalidate_caches()
+            try:
+                import selective_scan_cuda_oflex
+            except ImportError as retry_exc:
+                raise RuntimeError(
+                    'Build ops/selective_scan/cuda first; see its README.md') from retry_exc
 
         ctx.delta_softplus = delta_softplus
         ctx.backend = backend

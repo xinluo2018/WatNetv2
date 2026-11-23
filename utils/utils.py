@@ -4,16 +4,33 @@
 
 import rasterio as rio 
 ## read scenes
-def read_scenes(scene_paths, truth_paths):
-  paths_zip = zip(scene_paths, truth_paths)
-  scenes_arr = []
-  truths_arr = []
-  for scene_path, truth_path in paths_zip:
-      ## 1. read scene and truth images
-      with rio.open(scene_path) as src:
-        scene_arr = src.read().transpose((1, 2, 0))  # (H, W, C)
-      with rio.open(truth_path) as truth_src:
-        truth_arr = truth_src.read(1)  # (H, W)
-      scenes_arr.append(scene_arr)
-      truths_arr.append(truth_arr)
-  return scenes_arr, truths_arr 
+# def read_scenes(scene_paths, truth_paths):
+#   paths_zip = zip(scene_paths, truth_paths)
+#   scenes_arr = []
+#   truths_arr = []
+#   for scene_path, truth_path in paths_zip:
+#       ## 1. read scene and truth images
+#       with rio.open(scene_path) as src:
+#         scene_arr = src.read().transpose((1, 2, 0))  # (H, W, C)
+#       with rio.open(truth_path) as truth_src:
+#         truth_arr = truth_src.read(1)  # (H, W)
+#       scenes_arr.append(scene_arr)
+#       truths_arr.append(truth_arr)
+#   return scenes_arr, truths_arr 
+
+def read_imgs(*args):
+    ### read multiple sets of images, 
+    # e.g., path_scenes, path_truths or path_scenes, path_truths, path_dems, ...
+    num_data = len(args)
+    lenth_data = len(args[0])
+    imgs_arr = [[] for _ in range(num_data)]
+    for data_i in range(num_data):
+        for lenth_i in range(lenth_data):
+            with rio.open(args[data_i][lenth_i]) as src:
+                img_arr = src.read().transpose((1, 2, 0))
+            imgs_arr[data_i].append(img_arr)
+    if num_data == 1: 
+       return imgs_arr[0]
+    else: 
+       return tuple(imgs_arr)
+

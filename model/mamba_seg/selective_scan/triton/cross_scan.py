@@ -496,9 +496,12 @@ class CrossMergeTritonF(torch.autograd.Function):
         )
         return y, None, None, None, None, None
 
-
 # @torch.compile(options={"triton.cudagraphs": True}, fullgraph=True)
-def cross_scan_fn(x: torch.Tensor, in_channel_first=True, out_channel_first=True, one_by_one=False, scans=0, force_torch=False):
+def cross_scan_fn(x: torch.Tensor, in_channel_first=True, 
+                                    out_channel_first=True, 
+                                    one_by_one=False, 
+                                    scans=0, 
+                                    force_torch=False):
     # x: (B, C, H, W) | (B, H, W, C) | (B, 4, C, H, W) | (B, H, W, 4, C)
     # y: (B, 4, C, L) | (B, L, 4, C)
     # scans: 0: cross scan; 1 unidirectional; 2: bidirectional;

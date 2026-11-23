@@ -16,8 +16,8 @@ import torch.nn.functional as F
 from glob import glob
 import matplotlib.pyplot as plt
 from utils.utils import read_scenes
-from utils.data_loader import SceneArraySet, PatchPathSet
-from utils.data_aug import GaussianNoise
+from dataloader.data_loader import SceneArraySet, PatchPathSet
+from dataloader.data_aug import GaussianNoise
 from torchvision.transforms import v2
 from torchmetrics.classification import MulticlassJaccardIndex, BinaryAccuracy
 from model import unet, deeplabv3plus_mobilev2, swin_unet, watnet

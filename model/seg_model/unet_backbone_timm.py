@@ -36,8 +36,9 @@ class PyramidDecoder(nn.Module):
             raise ValueError('Feature count does not match decoder projections')
         x = self.projections[-1](features[-1])
         for projection, feature in reversed(list(zip(self.projections[:-1], features[:-1]))):
+            # feature fusion with upsampled deeper features
             x = projection(feature) + F.interpolate(
-                x, size=feature.shape[-2:], mode='bilinear', align_corners=False)
+                        x, size=feature.shape[-2:], mode='bilinear', align_corners=False)
         return self.head(x)
     
 class unet_backbone_timm(nn.Module):
@@ -86,10 +87,10 @@ class unet_backbone_timm(nn.Module):
 if __name__ == '__main__':
     # 模拟输入: Batch=2, 6个多光谱波段
     model = unet_backbone_timm(num_bands=6, 
-                            backbone_name='swinv2_base_window8_256',
-                            # backbone_name = 'efficientnet_b0',
+                            # backbone_name='swinv2_base_window8_256',
+                            backbone_name = 'efficientnet_b0',
                             pretrained=True,
-                            img_size = 512,  ## required for swin transformer model.
+                            # img_size = 512,  ## required for swin transformer model.
                             )
                          
     x = torch.randn(2, 6, 512, 512)  
